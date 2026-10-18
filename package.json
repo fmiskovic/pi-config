@@ -1,0 +1,12 @@
+{
+  "name": "pi-config",
+  "private": true,
+  "type": "module",
+  "description": "Personal pi coding agent configuration: instructions, subagents, prompts, and safety extensions.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test extensions/*/*.test.ts"
+  }
+}

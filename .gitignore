@@ -1,0 +1,20 @@
+# Allow-list: ignore everything, then include only the shareable config.
+# Secrets and machine state (auth.json, mcp-auth.json, settings.json,
+# sessions/) live in ~/.pi/agent and must never be added here.
+*
+!.gitignore
+!README.md
+!LICENSE
+!install.sh
+!package.json
+!settings.example.json
+!AGENTS.md
+!mcp.json
+!agents/
+!agents/*.md
+!prompts/
+!prompts/*.md
+!extensions/
+!extensions/**
+!.github/
+!.github/**
