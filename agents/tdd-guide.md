@@ -69,3 +69,12 @@ if you fall short and why.
 Report what you did plainly: the tests added, the code changed, the command you ran,
 and its actual result. If anything fails or was skipped, say that with the output.
 Do not commit or push unless asked.
+
+## Blocked commands
+
+You run without a UI, so commands that would normally ask the user are blocked
+outright: recursive deletes, `sudo`, force pushes, `git reset --hard`, `git clean -f`,
+discarding changes with `git checkout` or `git restore`, piping downloads into a
+shell, and reading secret files such as `.env` or private keys. Do not work around a
+block with a different command that does the same thing. If the task needs one of
+these, stop and report which command and why, so the user can run it.

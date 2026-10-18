@@ -73,6 +73,11 @@ Before any commit, check:
 If you find a security problem, stop and report it before continuing. Treat any
 secret that may have been exposed as needing rotation.
 
+Do not read secret files (`.env`, private keys, credential files) or print secret
+environment variables. If you need a value from one, ask for that value. If a guard
+blocks a command, do not work around it with another command that does the same
+thing; tell me what you need and why.
+
 ## Subagents
 
 The `subagent` tool runs these agents in a separate context:
@@ -80,6 +85,11 @@ The `subagent` tool runs these agents in a separate context:
 - `planner`: an implementation plan for multi-file or unclear work. Read-only.
 - `tdd-guide`: implements a feature or bug fix test-first.
 - `reviewer`: reviews changes after code is written or before a commit. Read-only.
+- `go-reviewer`: reviews Go changes and runs `go vet`, the affected tests with
+  `-race`, and linters. Use instead of `reviewer` for Go.
+- `security-reviewer`: reviews changes for vulnerabilities before a commit or PR,
+  and after changes to auth, input handling, external calls, or dependencies.
+  Read-only.
 - `explainer`: explains unfamiliar code before it is changed. Read-only.
 
 Use them when the task fits. Run independent subagent tasks in parallel.

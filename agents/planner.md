@@ -2,6 +2,7 @@
 name: planner
 description: Produces a step-by-step implementation plan for a feature, refactor, or architectural change. Read-only. Use before starting work that spans multiple files or has unclear scope.
 tools: read, grep, find, ls, bash
+model: openai/gpt-6.1-sol
 bashAllow: git status, git diff, git log, git show, git ls-files
 ---
 

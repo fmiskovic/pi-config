@@ -15,16 +15,64 @@ export interface CommandCheck {
 /** Chaining, pipes, redirection, substitution, grouping, escapes, and newlines. */
 const SHELL_METACHARACTERS = /[;&|`$<>(){}\\\n\r]/;
 
-/** Options that make otherwise read-only git commands write files or run programs. */
-const BLOCKED_OPTIONS = ["--output", "--ext-diff"];
+interface OptionRules {
+	/** Option names, without dashes, that are blocked with any value. */
+	readonly names: readonly string[];
+	/** Option name prefixes, without dashes, that are blocked with any value. */
+	readonly prefixes?: readonly string[];
+	/** Option names, without dashes, that are blocked only with one of these values. */
+	readonly values?: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * Options that make an otherwise read-only command write files or run other
+ * programs, keyed by program. Names are compared without leading dashes,
+ * because Go accepts both `-exec` and `--exec`.
+ */
+const BLOCKED_OPTIONS: Readonly<Record<string, OptionRules>> = {
+	git: { names: ["output", "ext-diff"] },
+	go: {
+		names: [
+			"exec",
+			"toolexec",
+			"vettool",
+			"o",
+			"c",
+			"coverprofile",
+			"cpuprofile",
+			"memprofile",
+			"blockprofile",
+			"mutexprofile",
+			"trace",
+			"outputdir",
+			"args",
+			"update",
+			"fuzz",
+		],
+		values: { mod: ["mod"] },
+	},
+	"golangci-lint": { names: ["fix", "cpu-profile-path", "mem-profile-path", "trace-path"], prefixes: ["output."] },
+};
 
 function normalize(command: string): string {
 	return command.trim().split(/\s+/).filter(Boolean).join(" ");
 }
 
 function usesBlockedOption(command: string): string | undefined {
-	const tokens = command.split(" ").map((token) => token.replace(/^["']+/, ""));
-	return BLOCKED_OPTIONS.find((option) => tokens.some((token) => token === option || token.startsWith(`${option}=`)));
+	// The shell drops quotes anywhere in a word, so `-"o"` and `-ex"ec"` are `-o` and `-exec`.
+	const tokens = command.split(" ").map((token) => token.replace(/["']/g, ""));
+	const rules = BLOCKED_OPTIONS[tokens[0]];
+	if (!rules) return undefined;
+
+	for (const [index, token] of tokens.entries()) {
+		if (!/^--?[^-]/.test(token)) continue;
+		const [option, inlineValue] = token.split(/=(.*)/s);
+		const name = option.replace(/^--?/, "");
+		if (rules.names.includes(name) || rules.prefixes?.some((p) => name.startsWith(p))) return option;
+		const value = inlineValue ?? tokens[index + 1];
+		if (rules.values?.[name]?.includes(value)) return `${option}=${value}`;
+	}
+	return undefined;
 }
 
 /**

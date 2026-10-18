@@ -2,6 +2,7 @@
 name: explainer
 description: Explains how code works, such as a file, function, feature, data flow, or error, by reading the codebase. Read-only. Use to understand unfamiliar code before changing it.
 tools: read, grep, find, ls, bash
+model: openai/gpt-6.1-sol
 bashAllow: git status, git diff, git log, git show, git blame, git ls-files
 ---
 

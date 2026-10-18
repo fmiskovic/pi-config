@@ -2,7 +2,7 @@ MIT License
 
 Copyright (c) 2026 fmiskovic
 
-Portions of extensions/subagent/, extensions/permission-gate.ts, and
+Portions of extensions/subagent/, extensions/permission-gate/, and
 extensions/dirty-repo-guard.ts are derived from the example extensions of the
 pi coding agent (https://github.com/earendil-works/pi), also MIT licensed.
 
