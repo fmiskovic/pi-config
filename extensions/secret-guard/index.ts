@@ -5,12 +5,14 @@
  * private keys, cloud and registry credentials, pi's own auth files, and
  * secret-looking environment variables. See policy.ts for what counts.
  *
- * Approvals can cover the rest of the session for the same secrets. With no
- * UI to ask (print mode, subagents), these calls are blocked.
+ * Approvals can cover the rest of the session for the same secrets, however
+ * their paths are spelled. With no UI to ask (print mode, subagents), these
+ * calls are blocked.
  */
 
+import * as os from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { findSecretsInToolCall } from "./policy.ts";
+import { findSecretsInToolCall, secretKey } from "./policy.ts";
 
 const ALLOW_ONCE = "Allow once";
 const ALLOW_SESSION = "Allow these for the rest of the session";
@@ -24,7 +26,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
-		const secrets = findSecretsInToolCall(event.toolName, event.input, ctx.cwd).filter((s) => !sessionAllowed.has(s));
+		const keyOf = (secret: string) => secretKey(secret, ctx.cwd, os.homedir());
+		const secrets = findSecretsInToolCall(event.toolName, event.input, ctx.cwd).filter(
+			(s) => !sessionAllowed.has(keyOf(s)),
+		);
 		if (secrets.length === 0) return undefined;
 
 		const list = secrets.map((s) => `  • ${s}`).join("\n");
@@ -40,7 +45,7 @@ export default function (pi: ExtensionAPI) {
 			ALLOW_SESSION,
 			BLOCK,
 		]);
-		if (choice === ALLOW_SESSION) sessionAllowed = new Set([...sessionAllowed, ...secrets]);
+		if (choice === ALLOW_SESSION) sessionAllowed = new Set([...sessionAllowed, ...secrets.map(keyOf)]);
 		if (choice === ALLOW_ONCE || choice === ALLOW_SESSION) return undefined;
 		return {
 			block: true,

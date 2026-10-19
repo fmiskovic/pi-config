@@ -198,3 +198,54 @@ test("heredoc text does not trigger, and does not hide what follows", () => {
 	assertSafe("git commit -F - <<'EOF'\nsudo rm -rf cache\nEOF");
 	assertDangerous("cat <<EOF > notes.md\nit's\nEOF\nsudo ls", "sudo");
 });
+
+test("flags gh commands that write to GitHub", () => {
+	for (const command of [
+		"gh pr create --title x --body y",
+		"gh pr merge 12 --squash",
+		"gh pr close 12",
+		"gh pr comment 12 -b ok",
+		"gh pr review 12 --approve",
+		"gh issue create -t x",
+		"gh issue close 3",
+		"gh issue comment 3 -b x",
+		"gh release create v1.0.0",
+		"gh repo create me/x --private",
+		"gh repo edit --visibility public",
+		"gh secret set TOKEN",
+		"gh variable delete X",
+		"gh workflow run ci.yml",
+		"gh run rerun 99",
+		"gh label create bug",
+		"gh gist create notes.md",
+	]) {
+		assertDangerous(command, "writes to GitHub");
+	}
+});
+
+test("flags gh api calls that write", () => {
+	assertDangerous("gh api -X POST repos/me/x/issues", "gh api");
+	assertDangerous("gh api --method PATCH repos/me/x", "gh api");
+	assertDangerous("gh api repos/me/x/issues -f title=x", "gh api");
+	assertDangerous("gh api repos/me/x/issues --input body.json", "gh api");
+	assertDangerous("gh api graphql -f query='mutation { addStar(input: {}) { clientMutationId } }'", "gh api");
+	assertSafe("gh api graphql -f query='{ viewer { login } }'");
+	assertSafe("gh api -X GET search/issues -f q=bug");
+});
+
+test("does not flag gh commands that only read or work locally", () => {
+	for (const command of [
+		"gh pr view 12",
+		"gh pr list --state open",
+		"gh pr checks",
+		"gh pr diff 12",
+		"gh pr checkout 12",
+		"gh issue list",
+		"gh run view 99 --log",
+		"gh repo clone me/x",
+		"gh repo view",
+		"gh auth status",
+	]) {
+		assertSafe(command);
+	}
+});

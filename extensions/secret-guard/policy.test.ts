@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { findSecretsInCommand, findSecretsInToolCall, isSecretPath } from "./policy.ts";
+import { findSecretsInCommand, findSecretsInToolCall, isSecretPath, secretKey } from "./policy.ts";
 
 test("recognizes dotenv files but not their templates", () => {
 	for (const path of [".env", ".env.local", ".env.production", "app/.env", ".envrc", "prod.env"]) {
@@ -167,4 +167,21 @@ test("flags process environments, cloud credentials, and whole secret directorie
 
 test("a heredoc body does not hide a later secret read", () => {
 	assert.deepEqual(findSecretsInCommand("cat <<EOF > x\ndon't\nEOF\ncat .env"), [".env"]);
+});
+
+test("secretKey gives every spelling of a file the same key", () => {
+	const home = "/home/me";
+	assert.equal(secretKey(".env", "/p", home), "/p/.env");
+	assert.equal(secretKey("./.env", "/p", home), "/p/.env");
+	assert.equal(secretKey("/p/.env", "/elsewhere", home), "/p/.env");
+	assert.equal(secretKey("sub/../.env", "/p", home), "/p/.env");
+	assert.equal(secretKey("~/.aws/credentials", "/p", home), "/home/me/.aws/credentials");
+	assert.equal(secretKey("$HOME/.aws/credentials", "/p", home), "/home/me/.aws/credentials");
+	assert.equal(secretKey("${HOME}/.aws/credentials", "/p", home), "/home/me/.aws/credentials");
+});
+
+test("secretKey leaves variables, dumps, and commands unchanged", () => {
+	assert.equal(secretKey("$GITHUB_TOKEN", "/p", "/home/me"), "$GITHUB_TOKEN");
+	assert.equal(secretKey("environment variables", "/p", "/home/me"), "environment variables");
+	assert.equal(secretKey("gh auth token", "/p", "/home/me"), "gh auth token");
 });

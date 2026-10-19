@@ -6,9 +6,13 @@
  * tool is gated until it is known to be read-only.
  */
 
+/** MCP tool annotations (only `readOnlyHint` is used here). */
 export interface ToolAnnotations {
+	title?: string;
 	readOnlyHint?: boolean;
 	destructiveHint?: boolean;
+	idempotentHint?: boolean;
+	openWorldHint?: boolean;
 }
 
 /** Pi names MCP tools `mcp__<server>__<tool>`. */

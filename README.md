@@ -54,12 +54,13 @@ Run by the `subagent` tool, each in its own pi process and context window.
 
 | Agent | Does | Access |
 |---|---|---|
-| `planner` | Writes an implementation plan | Read-only |
+| `planner` | Writes an implementation plan (on `gpt-6.1-sol`) | Read-only |
 | `tdd-guide` | Implements test-first | Full |
 | `reviewer` | Reviews changes for correctness, security, regressions | Read-only |
 | `go-reviewer` | Reviews Go changes; runs `go vet`, tests with `-race`, linters | No edits; runs tests |
+| `java-reviewer` | Reviews Java changes, with Keycloak-specific checks (provider lifecycle, sessions, admin permissions) | Read-only |
 | `security-reviewer` | Reviews changes for vulnerabilities; runs `govulncheck` | Read-only |
-| `explainer` | Explains how code works | Read-only |
+| `explainer` | Explains how code works (on `gpt-6.1-sol`) | Read-only |
 
 The access limits are enforced, not just requested: these agents get no edit or
 write tools, and their shell is limited to the commands in their `bashAllow`
@@ -73,10 +74,13 @@ read-only.
 | Command | Runs |
 |---|---|
 | `/plan <task>` | `planner` |
-| `/review [target]` | `go-reviewer` for Go changes, else `reviewer`; uncommitted changes by default |
+| `/review [target]` | The reviewer for the language (`go-reviewer`, `java-reviewer`, else `reviewer`); uncommitted changes by default |
 | `/security [target]` | `security-reviewer`, on uncommitted changes by default |
-| `/commit [notes]` | Reviews the staged changes, then commits with a conventional message. Stops on a CRITICAL or HIGH finding; never pushes |
-| `/pr [base] [notes]` | Reviews the whole branch, then pushes it and opens a pull request with a summary and test plan |
+| `/commit [notes]` | Reviews the staged changes in proportion to their risk, then commits. Docs-only changes get no subagent review; `security-reviewer` runs only for dependency, auth, input-handling, CI, or large changes. Stops on a CRITICAL or HIGH finding; never pushes |
+| `/pr [base] [notes]` | Reviews the whole branch with the language reviewer and `security-reviewer`, then pushes it and opens a pull request with a summary and test plan |
+
+`/commit` and `/pr` follow a project's own `CONTRIBUTING.md` rules first, such as
+Keycloak's `Signed-off-by` trailer, `Closes #issue` link, and one commit per PR.
 | `/explain <question>` | `explainer` |
 | `/tdd <task>` | `planner` → `tdd-guide` → `reviewer` as a chain |
 
@@ -87,10 +91,10 @@ read-only.
 | `subagent/` | The `subagent` tool: single, parallel, and chained runs |
 | `subagent-bash-guard/` | Enforces an agent's `bashAllow` list in its child process: one plain command, no pipes, chaining, redirection, or substitution |
 | `github-write-gate/` | Asks before any GitHub MCP call not declared read-only; blocks them when there is no UI (print mode, subagents) |
-| `permission-gate/` | Asks before commands that are hard to undo: recursive `rm`, `sudo`, `git push --force`/`--delete`, `git reset --hard`, `git clean -f`, discarding changes with `git checkout`/`git restore`, `git switch -f`, `git branch -D`, `git stash drop`, `curl … \| sh`, `eval` of any of these, `dd of=`, `mkfs`, raw disk writes, `find -delete`, `kubectl delete`, `terraform destroy`, `docker system prune`, `aws s3 rm --recursive`, `gh repo delete` |
+| `permission-gate/` | Asks before commands that are hard to undo: recursive `rm`, `sudo`, `git push --force`/`--delete`, `git reset --hard`, `git clean -f`, discarding changes with `git checkout`/`git restore`, `git switch -f`, `git branch -D`, `git stash drop`, `curl … \| sh`, `eval` of any of these, `dd of=`, `mkfs`, raw disk writes, `find -delete`, `kubectl delete`, `terraform destroy`, `docker system prune`, `aws s3 rm --recursive`, and `gh` commands that write to GitHub (`gh pr create`/`merge`, `gh issue close`, `gh release create`, `gh api -X POST`, and so on; reads like `gh pr view` pass) |
 | `secret-guard/` | Asks before a tool reads, writes, or prints secrets: `.env*` (not templates), private keys and keystores, `~/.aws/credentials`, `~/.kube/config`, `.netrc`, `.npmrc`, Terraform state, pi's own `auth.json`, `/proc/*/environ`, environment dumps, `echo $*_TOKEN`-style prints, and commands that print credentials (`gh auth token`, `kubectl config view --raw`, `gcloud auth print-access-token`). Using a variable without printing it (`curl -H "Bearer $TOKEN"`) is fine. Approvals can cover the rest of the session |
 | `dirty-repo-guard.ts` | Asks before starting or forking a session with uncommitted changes |
-| `shared/` | The shell parser both gates use, so flag order, `sudo`, `xargs`, `bash -c "…"`, `$(…)`, and pipes do not hide a command. Not loaded as an extension |
+| `shared/` | The shell parser both gates use, so flag order, `sudo`, `xargs`, `bash -c "…"`, `eval`, `$(…)`, heredocs, and pipes do not hide a command; plus a fake pi API for tests. Not loaded as an extension |
 
 Every gate also hooks calls made from `codemode` scripts. With no UI to ask (print
 mode, subagents), anything a gate would ask about is blocked.
@@ -98,16 +102,54 @@ mode, subagents), anything a gate would ask about is blocked.
 The gates catch mistakes, not a determined adversary. They match command words and
 paths, so a program that opens a secret file by itself, or a command spelled in a way
 the parser cannot see through (a downloaded script saved and then run, a command run
-over `ssh`), gets past them. Keep real secrets out of the agent's reach too.
+over `ssh`), gets past them. Keep real secrets out of the agent's reach too, and use
+the sandbox below for repositories you do not trust.
+
+## Sandbox
+
+`sandbox/pi-sandbox` runs pi in a Docker container that can only see the directory
+you start it from:
+
+```bash
+ln -s ~/dev/pi-config/sandbox/pi-sandbox ~/.local/bin/pi-sandbox   # once
+cd ~/dev/some-untrusted-repo
+pi-sandbox                    # first run: use /login inside
+pi-sandbox -- -p "list the failing tests"
+```
+
+| | Host pi | `pi-sandbox` |
+|---|---|---|
+| Files | Everything your user can read | The current directory only, at `/workspace` (`--read-only` to mount it read-only) |
+| pi login and sessions | `~/.pi/agent` | Its own, in the `pi-sandbox-home` Docker volume |
+| This config | Symlinked | Mounted read-only |
+| SSH keys, cloud credentials, other repos | Reachable | Not mounted |
+| GitHub token | Always | Only with `--github` |
+| `git push` | Your credentials | No credentials, so pushes fail |
+| Network | Open | Open (the model API needs it) |
+
+The image matches your host pi and Go versions (`pi-sandbox:<pi>-go<go>`) and runs as
+an unprivileged user. Rebuild it after updating pi with `pi-sandbox --rebuild`. The
+container has its own pi login so your host OAuth tokens are never copied in.
+It has no Java toolchain and no Go linters; add them to `sandbox/Dockerfile` if you
+need them there.
 
 ## Tests
 
 ```bash
-npm test
+npm ci --ignore-scripts   # once: pi's types and TypeScript, pinned to the pi you run
+npm run check             # type-check, then all tests
 ```
 
-Runs the tests for the shell parser and all three gates' policies with Node's
-built-in test runner. CI runs the same on every push.
+The tests cover the shell parser, every gate's policy, and the wiring: each
+extension is loaded against a fake pi API (`extensions/shared/fake-pi.ts`) and its
+handlers are exercised. The type-check runs against pi's own type definitions, so an
+event or API that pi renames fails CI instead of silently disabling a gate. CI runs
+both on every push.
+
+The dev dependencies pin pi 1.3.0. When you update pi, set the `@earendil-works/*`
+versions in `package.json` to the new version, then run `npm install` and
+`npm run check`. They are only for type-checking and tests: pi loads the extensions
+with its own copies of these packages.
 
 ## Credits
 

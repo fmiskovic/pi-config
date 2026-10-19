@@ -215,3 +215,16 @@ export function findSecretsInToolCall(toolName: string, input: unknown, cwd?: st
 			: [];
 	return [...new Set(candidates.filter((c) => isSecretPathFrom(c, cwd)))];
 }
+
+const VARIABLE_LABEL = /^\$[A-Za-z_][A-Za-z0-9_]*$/;
+const HOME_PREFIX = /^(~|\$HOME|\$\{HOME\})(?=\/|$)/;
+
+/**
+ * A stable key for a finding, so one approval covers every spelling of the
+ * same file (`.env`, `./.env`, `/abs/.env`). Variable names and labels such
+ * as `environment variables` are returned unchanged.
+ */
+export function secretKey(secret: string, cwd: string, home: string): string {
+	if (VARIABLE_LABEL.test(secret) || /\s/.test(secret)) return secret;
+	return path.resolve(cwd, secret.replace(HOME_PREFIX, home));
+}

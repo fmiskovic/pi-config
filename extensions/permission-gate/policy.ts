@@ -15,6 +15,7 @@ import {
 	type SimpleCommand,
 	unwrapCommand,
 } from "../shared/shell.ts";
+import { ghDanger } from "./github.ts";
 
 type Rule = (args: readonly string[]) => string | undefined;
 
@@ -115,14 +116,6 @@ const GIT_RULES: Record<string, Rule> = {
 	"filter-repo": () => "git filter-repo: rewrites repository history",
 };
 
-function ghApiMethod(args: readonly string[]): string | undefined {
-	const index = args.findIndex((a) => a === "-X" || a === "--method");
-	if (index !== -1) return args[index + 1];
-	const inline = args.find((a) => /^(-X|--method=)./.test(a));
-	return inline?.replace(/^(-X|--method=)/, "");
-}
-
-const GH_DELETES = new Set(["repo delete", "repo archive", "release delete"]);
 
 /** The first argument that is neither an option nor an option's value. */
 function kubectlSubcommand(args: readonly string[]): string | undefined {
@@ -171,12 +164,7 @@ const COMMAND_RULES: Record<string, Rule> = {
 		args[0] === "destroy" || (args[0] === "apply" && args.includes("-destroy"))
 			? "terraform destroy: destroys infrastructure"
 			: undefined,
-	gh: (args) => {
-		const pair = `${args[0]} ${args[1]}`;
-		if (GH_DELETES.has(pair)) return `gh ${pair}: deletes or archives GitHub resources`;
-		const method = args[0] === "api" ? ghApiMethod(args) : undefined;
-		return method?.toUpperCase() === "DELETE" ? "gh api DELETE: deletes GitHub resources" : undefined;
-	},
+	gh: ghDanger,
 };
 
 function worldWritable(name: string, args: readonly string[]): string | undefined {

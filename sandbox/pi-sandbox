@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# Run pi in a Docker container that can only see the current directory.
+#
+# The container gets this repo's config (read-only), its own pi login and
+# sessions (a Docker volume), and the current directory at /workspace. It does
+# not get your host ~/.pi/agent, SSH keys, cloud credentials, or other files.
+#
+# Usage: pi-sandbox [--github] [--read-only] [--rebuild] [--] [pi arguments...]
+#
+#   --github      pass GITHUB_PERSONAL_ACCESS_TOKEN, for the GitHub MCP server
+#   --read-only   mount the current directory read-only
+#   --rebuild     rebuild the image before running
+#
+# First run: start it without arguments and use /login inside. The login is
+# stored in the pi-sandbox-home volume, separate from your host login.
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+AGENT_HOME=/home/node/.pi/agent
+CONFIG_ITEMS=(AGENTS.md mcp.json agents prompts extensions)
+PASSTHROUGH_ENV=(CONTEXT7_API_KEY BRAVE_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY)
+
+usage() {
+	sed -n '/^# Usage:/,/^# First run/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+host_pi_version() {
+	cat "$HOME/.pi/agent/install/current-version" 2>/dev/null || echo latest
+}
+
+host_go_version() {
+	go env GOVERSION 2>/dev/null | sed -E 's/^go([0-9]+\.[0-9]+).*/\1/' || true
+}
+
+build_image() {
+	local tag="$1" pi_version="$2" go_version="$3"
+	docker build \
+		--build-arg "PI_VERSION=$pi_version" \
+		--build-arg "GO_VERSION=$go_version" \
+		-t "$tag" "$REPO_DIR/sandbox"
+}
+
+main() {
+	local github=false read_only=false rebuild=false
+	while (($# > 0)); do
+		case "$1" in
+		--github) github=true ;;
+		--read-only) read_only=true ;;
+		--rebuild) rebuild=true ;;
+		-h | --help) usage; return 0 ;;
+		--) shift; break ;;
+		*) break ;;
+		esac
+		shift
+	done
+
+	local pi_version go_version tag
+	pi_version="${PI_VERSION:-$(host_pi_version)}"
+	go_version="${GO_VERSION:-$(host_go_version)}"
+	go_version="${go_version:-1.27}"
+	tag="pi-sandbox:${pi_version}-go${go_version}"
+
+	if $rebuild || ! docker image inspect "$tag" >/dev/null 2>&1; then
+		build_image "$tag" "$pi_version" "$go_version"
+	fi
+
+	# Plain `if` blocks: under `set -e`, a loop ending in a false `[[ ]] && ...` exits the script.
+	local args=(run --rm -w /workspace)
+	if [[ -t 0 && -t 1 ]]; then args+=(-it); fi
+	local mode=""
+	if $read_only; then mode=":ro"; fi
+	args+=(-v "$PWD:/workspace$mode")
+	args+=(-v "pi-sandbox-home:$AGENT_HOME" -v "pi-sandbox-go:/home/node/go")
+	for item in "${CONFIG_ITEMS[@]}"; do
+		args+=(-v "$REPO_DIR/$item:$AGENT_HOME/$item:ro")
+	done
+	for var in "${PASSTHROUGH_ENV[@]}"; do
+		if [[ -n "${!var:-}" ]]; then args+=(-e "$var"); fi
+	done
+	if $github; then args+=(-e GITHUB_PERSONAL_ACCESS_TOKEN); fi
+
+	local name email
+	name="$(git config user.name 2>/dev/null || true)"
+	email="$(git config user.email 2>/dev/null || true)"
+	if [[ -n "$name" ]]; then args+=(-e "GIT_AUTHOR_NAME=$name" -e "GIT_COMMITTER_NAME=$name"); fi
+	if [[ -n "$email" ]]; then args+=(-e "GIT_AUTHOR_EMAIL=$email" -e "GIT_COMMITTER_EMAIL=$email"); fi
+
+	exec docker "${args[@]}" "$tag" "$@"
+}
+
+main "$@"

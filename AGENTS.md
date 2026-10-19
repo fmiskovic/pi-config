@@ -52,7 +52,9 @@ is wrong. Always run the tests yourself and report the actual result.
 ## Git
 
 - Commit messages: `<type>: <description>`, with an optional body. Types: `feat`,
-  `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
+  `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`. If the project's
+  `CONTRIBUTING.md` sets its own rules (a format, a `Signed-off-by` trailer, an issue
+  link, one commit per PR), follow those instead.
 - Do not add co-author or "generated with" attribution lines.
 - Commit or push only when asked. Do not commit straight to the default branch
   unless asked.
@@ -87,6 +89,8 @@ The `subagent` tool runs these agents in a separate context:
 - `reviewer`: reviews changes after code is written or before a commit. Read-only.
 - `go-reviewer`: reviews Go changes and runs `go vet`, the affected tests with
   `-race`, and linters. Use instead of `reviewer` for Go.
+- `java-reviewer`: reviews Java changes, with Keycloak-specific checks. Read-only.
+  Use instead of `reviewer` for Java.
 - `security-reviewer`: reviews changes for vulnerabilities before a commit or PR,
   and after changes to auth, input handling, external calls, or dependencies.
   Read-only.

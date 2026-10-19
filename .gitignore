@@ -7,6 +7,8 @@
 !LICENSE
 !install.sh
 !package.json
+!package-lock.json
+!tsconfig.json
 !settings.example.json
 !AGENTS.md
 !mcp.json
@@ -16,5 +18,8 @@
 !prompts/*.md
 !extensions/
 !extensions/**
+!sandbox/
+!sandbox/Dockerfile
+!sandbox/pi-sandbox
 !.github/
 !.github/**
