@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createFakePi, fakeContext } from "../shared/fake-pi.ts";
-import githubWriteGate from "./index.ts";
+import mcpWriteGate from "./index.ts";
 
 function setup() {
 	const pi = createFakePi({
@@ -9,9 +9,12 @@ function setup() {
 			{ name: "mcp__github__get_me", annotations: { readOnlyHint: true } },
 			{ name: "mcp__github__create_pull_request", annotations: { readOnlyHint: false } },
 			{ name: "mcp__github__new_tool" },
+			{ name: "mcp__gitlab__get_project", annotations: { readOnlyHint: true } },
+			{ name: "mcp__gitlab__create_merge_request", annotations: { readOnlyHint: false } },
+			{ name: "mcp__keycloak__delete_user" },
 		],
 	});
-	githubWriteGate(pi.api);
+	mcpWriteGate(pi.api);
 	return pi;
 }
 
@@ -46,4 +49,34 @@ test("blocks writes when there is no UI", async () => {
 		block: boolean;
 	};
 	assert.equal(result.block, true);
+});
+
+test("lets read-only GitLab tools through without asking", async () => {
+	const ctx = fakeContext();
+	assert.equal(await setup().emit("tool_call", call("mcp__gitlab__get_project"), ctx), undefined);
+	assert.deepEqual(ctx.prompts, []);
+});
+
+test("asks before a GitLab write and names GitLab in the prompt", async () => {
+	const ctx = fakeContext({ answers: [false] });
+	const result = (await setup().emit("tool_call", call("mcp__gitlab__create_merge_request"), ctx)) as { block: boolean };
+	assert.equal(result.block, true);
+	assert.equal(ctx.prompts.length, 1);
+	assert.match(JSON.stringify(ctx.prompts[0]), /GitLab/);
+});
+
+test("blocks GitLab writes when there is no UI, naming GitLab in the reason", async () => {
+	const result = (await setup().emit("tool_call", call("mcp__gitlab__create_merge_request"), fakeContext({ hasUI: false }))) as {
+		block: boolean;
+		reason: string;
+	};
+	assert.equal(result.block, true);
+	assert.match(result.reason, /GitLab/);
+});
+
+test("asks before a Keycloak call and names Keycloak in the prompt", async () => {
+	const ctx = fakeContext({ answers: [false] });
+	const result = (await setup().emit("tool_call", call("mcp__keycloak__delete_user"), ctx)) as { block: boolean };
+	assert.equal(result.block, true);
+	assert.match(ctx.prompts[0] ?? "", /Keycloak/);
 });

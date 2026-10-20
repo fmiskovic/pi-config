@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import dirtyRepoGuard from "../dirty-repo-guard.ts";
-import githubWriteGate from "../github-write-gate/index.ts";
+import mcpWriteGate from "../mcp-write-gate/index.ts";
 import permissionGate from "../permission-gate/index.ts";
 import secretGuard from "../secret-guard/index.ts";
 import subagent from "../subagent/index.ts";
@@ -15,7 +15,7 @@ import { createFakePi, fakeContext } from "./fake-pi.ts";
 
 const EXPECTED_EVENTS = {
 	"dirty-repo-guard": [dirtyRepoGuard, ["session_before_switch", "session_before_fork"]],
-	"github-write-gate": [githubWriteGate, ["tool_call"]],
+	"mcp-write-gate": [mcpWriteGate, ["tool_call"]],
 	"permission-gate": [permissionGate, ["tool_call"]],
 	"secret-guard": [secretGuard, ["session_start", "tool_call"]],
 } as const;

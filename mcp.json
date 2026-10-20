@@ -26,6 +26,29 @@
         "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
       },
       "description": "GitHub repositories, issues, pull requests, and code search"
+    },
+    "keycloak": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@octodet/keycloak-mcp@1.0.6"
+      ],
+      "env": {
+        "KEYCLOAK_URL": "${KEYCLOAK_URL}",
+        "KEYCLOAK_ADMIN": "${KEYCLOAK_ADMIN}",
+        "KEYCLOAK_ADMIN_PASSWORD": "${KEYCLOAK_ADMIN_PASSWORD}"
+      },
+      "description": "Keycloak admin API: realms, users, roles (local dev instance)"
+    },
+    "terraform": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:1.1.0"
+      ],
+      "description": "Terraform Registry: providers, modules, and policies"
     }
   }
 }

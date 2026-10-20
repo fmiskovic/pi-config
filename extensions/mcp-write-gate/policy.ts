@@ -1,9 +1,10 @@
 /**
- * Decides which GitHub MCP tool calls need confirmation, and how to show them.
+ * Decides which GitHub, GitLab, and Keycloak MCP tool calls need confirmation,
+ * and how to show them.
  *
- * Relies on the `readOnlyHint` annotation the GitHub server declares for each
- * tool. A tool with no annotations is treated as a write, so a newly added
- * tool is gated until it is known to be read-only.
+ * Relies on the `readOnlyHint` annotation each server declares for its tools.
+ * A tool with no annotations is treated as a write, so a newly added tool is
+ * gated until it is known to be read-only.
  */
 
 /** MCP tool annotations (only `readOnlyHint` is used here). */
@@ -15,14 +16,28 @@ export interface ToolAnnotations {
 	openWorldHint?: boolean;
 }
 
-/** Pi names MCP tools `mcp__<server>__<tool>`. */
-const GITHUB_TOOL_PREFIX = "mcp__github__";
+/** Pi names MCP tools `mcp__<server>__<tool>`. Keys are tool prefixes, values the names shown to the user. */
+const GATED_SERVERS: Readonly<Record<string, string>> = {
+	mcp__github__: "GitHub",
+	mcp__gitlab__: "GitLab",
+	mcp__keycloak__: "Keycloak",
+};
 
 const MAX_VALUE_LENGTH = 80;
 const MAX_ARGUMENTS = 8;
 
+function gatedPrefix(toolName: string): string | undefined {
+	return Object.keys(GATED_SERVERS).find((prefix) => toolName.startsWith(prefix));
+}
+
+/** The display name of the gated server a tool belongs to, or undefined if it is not gated. */
+export function gatedServer(toolName: string): string | undefined {
+	const prefix = gatedPrefix(toolName);
+	return prefix === undefined ? undefined : GATED_SERVERS[prefix];
+}
+
 export function needsConfirmation(toolName: string, annotations: ToolAnnotations | undefined): boolean {
-	if (!toolName.startsWith(GITHUB_TOOL_PREFIX)) return false;
+	if (gatedPrefix(toolName) === undefined) return false;
 	return annotations?.readOnlyHint !== true;
 }
 
@@ -34,7 +49,8 @@ function formatValue(value: unknown): string {
 
 /** A short, human-readable summary of a call for the confirmation dialog. */
 export function describeCall(toolName: string, input: unknown): string {
-	const shortName = toolName.startsWith(GITHUB_TOOL_PREFIX) ? toolName.slice(GITHUB_TOOL_PREFIX.length) : toolName;
+	const prefix = gatedPrefix(toolName);
+	const shortName = prefix === undefined ? toolName : toolName.slice(prefix.length);
 	if (typeof input !== "object" || input === null || Array.isArray(input)) return shortName;
 
 	const entries = Object.entries(input);

@@ -46,7 +46,7 @@ main() {
 	fi
 
 	local missing=()
-	for var in CONTEXT7_API_KEY BRAVE_API_KEY GITHUB_PERSONAL_ACCESS_TOKEN; do
+	for var in CONTEXT7_API_KEY BRAVE_API_KEY GITHUB_PERSONAL_ACCESS_TOKEN KEYCLOAK_URL KEYCLOAK_ADMIN KEYCLOAK_ADMIN_PASSWORD; do
 		[[ -n "${!var:-}" ]] || missing+=("$var")
 	done
 	if ((${#missing[@]} > 0)); then

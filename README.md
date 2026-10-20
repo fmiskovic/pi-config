@@ -6,7 +6,8 @@ extensions.
 
 ## Install
 
-Requires pi, Node.js 24+, and `npx` (used by the Brave Search MCP server).
+Requires pi, Node.js 24+, `npx` (used by the Brave Search and Keycloak MCP servers),
+and Docker (used by the Terraform MCP server).
 
 ```bash
 git clone git@github.com:fmiskovic/pi-config.git ~/dev/pi-config
@@ -35,10 +36,13 @@ Nothing secret is stored in this repo. Each machine keeps its own:
 | `CONTEXT7_API_KEY` | `context7` (library documentation) |
 | `BRAVE_API_KEY` | `brave-search` (web search) |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | `github` (repos, issues, PRs) |
+| `KEYCLOAK_URL`, `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD` | `keycloak` (admin API of a local Keycloak) |
 
-If the GitHub token has write scopes, the `github-write-gate` extension is the
-only thing that asks before the agent writes to GitHub. Keep it enabled, or use
-a read-only token.
+If the GitHub token has write scopes, the `mcp-write-gate` extension is the only
+thing that asks before the agent writes to GitHub (or to a GitLab MCP server named
+`gitlab`, if you add one). Keep it enabled, or use a read-only token. It also gates
+the `keycloak` server: that server logs in as a Keycloak admin and marks none of
+its tools read-only, so every Keycloak call asks, list calls included.
 
 ## What's included
 
@@ -90,7 +94,7 @@ Keycloak's `Signed-off-by` trailer, `Closes #issue` link, and one commit per PR.
 |---|---|
 | `subagent/` | The `subagent` tool: single, parallel, and chained runs |
 | `subagent-bash-guard/` | Enforces an agent's `bashAllow` list in its child process: one plain command, no pipes, chaining, redirection, or substitution |
-| `github-write-gate/` | Asks before any GitHub MCP call not declared read-only; blocks them when there is no UI (print mode, subagents) |
+| `mcp-write-gate/` | Asks before any GitHub, GitLab, or Keycloak MCP call not declared read-only; blocks them when there is no UI (print mode, subagents) |
 | `permission-gate/` | Asks before commands that are hard to undo: recursive `rm`, `sudo`, `git push --force`/`--delete`, `git reset --hard`, `git clean -f`, discarding changes with `git checkout`/`git restore`, `git switch -f`, `git branch -D`, `git stash drop`, `curl … \| sh`, `eval` of any of these, `dd of=`, `mkfs`, raw disk writes, `find -delete`, `kubectl delete`, `terraform destroy`, `docker system prune`, `aws s3 rm --recursive`, and `gh` commands that write to GitHub (`gh pr create`/`merge`, `gh issue close`, `gh release create`, `gh api -X POST`, and so on; reads like `gh pr view` pass) |
 | `secret-guard/` | Asks before a tool reads, writes, or prints secrets: `.env*` (not templates), private keys and keystores, `~/.aws/credentials`, `~/.kube/config`, `.netrc`, `.npmrc`, Terraform state, pi's own `auth.json`, `/proc/*/environ`, environment dumps, `echo $*_TOKEN`-style prints, and commands that print credentials (`gh auth token`, `kubectl config view --raw`, `gcloud auth print-access-token`). Using a variable without printing it (`curl -H "Bearer $TOKEN"`) is fine. Approvals can cover the rest of the session |
 | `dirty-repo-guard.ts` | Asks before starting or forking a session with uncommitted changes |
